@@ -40,12 +40,9 @@ public class Robot extends TimedRobot {
   private final NetworkTableInstance inst = NetworkTableInstance.getDefault();
 
   private final NetworkTable potStats = inst.getTable("Potentiometer");
-  private final DoubleSubscriber lowVoltage = potStats.getDoubleTopic("Lowest Voltage").subscribe(0);
-  private final DoubleSubscriber highVoltage = potStats.getDoubleTopic("Highest Voltage").subscribe(4.8);
-  private final DoubleSubscriber degreeRange = potStats.getDoubleTopic("Range in Degrees").subscribe(3600.0);
   private final DoublePublisher potVoltage = potStats.getDoubleTopic("Potentiometer Voltage").publish();
-  private final DoublePublisher potDegrees = potStats.getDoubleTopic("Potentiometer Degrees").publish();
-  private final DoublePublisher potDegreesPerVolt = potStats.getDoubleTopic("Potentiometer Degrees Per Volt").publish();
+  private final DoubleSubscriber potDegreesPerVolt = potStats.getDoubleTopic("Potentiometer Degrees Per Volt")
+      .subscribe(0);
 
   private final NetworkTable turretStats = inst.getTable("Turret");
   private final DoubleSubscriber turretVoltageCenterOffset = turretStats
@@ -63,25 +60,22 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotInit() {
-    lowVoltage.getTopic().publish().set(0);
-    highVoltage.getTopic().publish().set(4.8);
-    degreeRange.getTopic().publish().set(3600.0);
-
+    potDegreesPerVolt.getTopic().publish().set(742.26);
     turretVoltageCenterOffset.getTopic().publish().set(2.5);
 
     TalonFXConfiguration cfg = new TalonFXConfiguration();
 
     MotionMagicConfigs mm = cfg.MotionMagic;
     mm.MotionMagicCruiseVelocity = 0.5;
-    mm.MotionMagicAcceleration = 10;
+    mm.MotionMagicAcceleration = 5;
     mm.MotionMagicJerk = 30;
 
     Slot0Configs slot0 = cfg.Slot0;
-    slot0.kP = 10;
+    slot0.kP = 100;
     slot0.kI = 0;
-    slot0.kD = 0.1;
-    slot0.kV = 0; // TODO Tune
-    slot0.kS = 0; // TODO Tune
+    slot0.kD = 1;
+    slot0.kV = 8.7184; // TODO Tune
+    slot0.kS = 0.6373; // TODO Tune
 
     FeedbackConfigs fdb = cfg.Feedback;
     fdb.SensorToMechanismRatio = 125; // 125:1 rotor to sensor is 1:1, sensor to output shaft (mechanism) is 125:1,
@@ -114,10 +108,6 @@ public class Robot extends TimedRobot {
       printCount = 0;
       var potVoltage = pot.getVoltage();
       this.potVoltage.set(potVoltage);
-      var degreesPerVolt = degreeRange.get() / (highVoltage.get() - lowVoltage.get());
-      potDegreesPerVolt.set(degreesPerVolt);
-      var potDegrees = degreesPerVolt * (potVoltage - lowVoltage.get());
-      this.potDegrees.set(potDegrees);
 
       var turretDegrees = Rotation2d.fromRotations(turret.getPosition().getValueAsDouble()).getDegrees();
       var turretDegreesPerSecond = Rotation2d.fromRotations(turret.getVelocity().getValueAsDouble()).getDegrees();
@@ -136,7 +126,9 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() {
     var rawInput = xbox.getRightX();
-    var deadbandedInput = (rawInput / Math.abs(rawInput)) * (Math.max(Math.abs(rawInput) - 0.15, 0) / 1 - 0.15);
+    var deadband = 0.2;
+    var deadbandedInput = (rawInput / Math.abs(rawInput))
+        * (Math.max(Math.abs(rawInput) - deadband, 0) / (1 - deadband));
 
     var targetDegrees = deadbandedInput * 360;
 
@@ -153,13 +145,11 @@ public class Robot extends TimedRobot {
     }
 
     if (xbox.getStartButton()) {
-      var degreesPerVolt = potDegreesPerVolt.getTopic().subscribe(0).get();
-      var potDegrees = this.potDegrees.getTopic().subscribe(0).get();
+      var degreesPerVolt = potDegreesPerVolt.get();
 
-      var offsetDegrees = degreesPerVolt
-          * (turretVoltageCenterOffset.get() - lowVoltage.get());
+      var currentTurretDegrees = degreesPerVolt
+          * (pot.getVoltage() - turretVoltageCenterOffset.get());
 
-      var currentTurretDegrees = potDegrees - offsetDegrees;
       turret.setPosition(Rotation2d.fromDegrees(currentTurretDegrees).getRotations());
 
       turretPositionCalibrated = true;
