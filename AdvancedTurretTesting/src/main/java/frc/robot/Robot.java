@@ -13,10 +13,13 @@ import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
 
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.networktables.DoublePublisher;
+import edu.wpi.first.networktables.DoubleSubscriber;
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.AnalogInput;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.XboxController;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
  * The VM is configured to automatically run this class, and to call the
@@ -34,6 +37,22 @@ public class Robot extends TimedRobot {
 
   private final MotionMagicVoltage turret_mmRequest = new MotionMagicVoltage(0);
 
+  private final NetworkTableInstance inst = NetworkTableInstance.getDefault();
+
+  private final NetworkTable potStats = inst.getTable("Potentiometer");
+  private final DoubleSubscriber lowVoltage = potStats.getDoubleTopic("Lowest Voltage").subscribe(0);
+  private final DoubleSubscriber highVoltage = potStats.getDoubleTopic("Highest Voltage").subscribe(4.8);
+  private final DoubleSubscriber degreeRange = potStats.getDoubleTopic("Range in Degrees").subscribe(3600.0);
+  private final DoublePublisher potVoltage = potStats.getDoubleTopic("Potentiometer Voltage").publish();
+  private final DoublePublisher potDegrees = potStats.getDoubleTopic("Potentiometer Degrees").publish();
+  private final DoublePublisher potDegreesPerVolt = potStats.getDoubleTopic("Potentiometer Degrees Per Volt").publish();
+
+  private final NetworkTable turretStats = inst.getTable("Turret");
+  private final DoubleSubscriber turretVoltageCenterOffset = turretStats
+      .getDoubleTopic("Center of Turret Rotation Voltage Offset").subscribe(2.5);
+  private final DoublePublisher turretPositionDegrees = turretStats.getDoubleTopic("Turret Position Degrees").publish();
+  private final DoublePublisher turretVelocityDegrees = turretStats.getDoubleTopic("Turret Velocity Deg/S").publish();
+
   private int printCount;
   private boolean turretPositionCalibrated;
 
@@ -44,11 +63,11 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotInit() {
-    SmartDashboard.putNumber("Lowest Voltage", 0);
-    SmartDashboard.putNumber("Highest Voltage", 4.8);
-    SmartDashboard.putNumber("Range in Degrees", 3600);
+    lowVoltage.getTopic().publish().set(0);
+    highVoltage.getTopic().publish().set(4.8);
+    degreeRange.getTopic().publish().set(3600.0);
 
-    SmartDashboard.putNumber("Center of Turret Rotation Voltage Offset", 2.5);
+    turretVoltageCenterOffset.getTopic().publish().set(2.5);
 
     TalonFXConfiguration cfg = new TalonFXConfiguration();
 
@@ -94,18 +113,17 @@ public class Robot extends TimedRobot {
     if (printCount++ > 10) {
       printCount = 0;
       var potVoltage = pot.getVoltage();
-      SmartDashboard.putNumber("Potentiometer Voltage", potVoltage);
-      var lowVoltage = SmartDashboard.getNumber("Lowest Voltage", 0);
-      var highVoltage = SmartDashboard.getNumber("Highest Voltage", 4.8);
-      var degreeRange = SmartDashboard.getNumber("Range in Degrees", 3600);
-      var degreesPerVolt = degreeRange / (highVoltage - lowVoltage);
-      var potDegrees = degreesPerVolt * (potVoltage - lowVoltage);
-      SmartDashboard.putNumber("Potentiometer Degrees", potDegrees);
+      this.potVoltage.set(potVoltage);
+      var degreesPerVolt = degreeRange.get() / (highVoltage.get() - lowVoltage.get());
+      potDegreesPerVolt.set(degreesPerVolt);
+      var potDegrees = degreesPerVolt * (potVoltage - lowVoltage.get());
+      this.potDegrees.set(potDegrees);
 
-      SmartDashboard.putNumber("Turret Position",
-          Rotation2d.fromRotations(turret.getPosition().getValueAsDouble()).getDegrees());
-      SmartDashboard.putNumber("Turret Velocity",
-          Rotation2d.fromRotations(turret.getVelocity().getValueAsDouble()).getDegrees());
+      var turretDegrees = Rotation2d.fromRotations(turret.getPosition().getValueAsDouble()).getDegrees();
+      var turretDegreesPerSecond = Rotation2d.fromRotations(turret.getVelocity().getValueAsDouble()).getDegrees();
+
+      turretPositionDegrees.set(turretDegrees);
+      turretVelocityDegrees.set(turretDegreesPerSecond);
     }
   }
 
@@ -127,21 +145,19 @@ public class Robot extends TimedRobot {
     if (targetDegrees < -350)
       targetDegrees = -350;
 
+    var targetRotations = Rotation2d.fromDegrees(targetDegrees).getRotations();
+
     if (turretPositionCalibrated) {
       turret
-          .setControl(turret_mmRequest.withPosition(Rotation2d.fromDegrees(targetDegrees).getRotations()).withSlot(0));
+          .setControl(turret_mmRequest.withPosition(targetRotations).withSlot(0));
     }
 
     if (xbox.getStartButton()) {
-      var potVoltage = pot.getVoltage();
-      var lowVoltage = SmartDashboard.getNumber("Lowest Voltage", 0);
-      var highVoltage = SmartDashboard.getNumber("Highest Voltage", 4.8);
-      var degreeRange = SmartDashboard.getNumber("Range in Degrees", 3600);
-      var degreesPerVolt = degreeRange / (highVoltage - lowVoltage);
-      var potDegrees = degreesPerVolt * (potVoltage - lowVoltage);
+      var degreesPerVolt = potDegreesPerVolt.getTopic().subscribe(0).get();
+      var potDegrees = this.potDegrees.getTopic().subscribe(0).get();
 
       var offsetDegrees = degreesPerVolt
-          * (SmartDashboard.getNumber("Center of Turret Rotation Voltage Offset", 2.5) - lowVoltage);
+          * (turretVoltageCenterOffset.get() - lowVoltage.get());
 
       var currentTurretDegrees = potDegrees - offsetDegrees;
       turret.setPosition(Rotation2d.fromDegrees(currentTurretDegrees).getRotations());
