@@ -145,6 +145,8 @@ public class Robot extends TimedRobot {
 
       var currentTurretDegrees = potDegrees - offsetDegrees;
       turret.setPosition(Rotation2d.fromDegrees(currentTurretDegrees).getRotations());
+
+      turretPositionCalibrated = true;
     }
   }
 
