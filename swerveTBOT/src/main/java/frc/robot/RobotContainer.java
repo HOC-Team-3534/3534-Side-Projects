@@ -4,8 +4,6 @@
 
 package frc.robot;
 
-import java.util.ArrayList;
-
 import com.ctre.phoenix6.StatusCode;
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveModule;
@@ -15,7 +13,6 @@ import com.ctre.phoenix6.mechanisms.swerve.SwerveRequest.FieldCentric;
 import com.pathplanner.lib.path.GoalEndState;
 import com.pathplanner.lib.path.PathConstraints;
 import com.pathplanner.lib.path.PathPlannerPath;
-import com.pathplanner.lib.path.PathPoint;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -70,16 +67,17 @@ public class RobotContainer {
   }
 
   public Command getAutonomousCommand() {
-    var points = new ArrayList<PathPoint>();
-
-    points.add(new PathPoint(new Translation2d()));
-    points.add(new PathPoint(new Translation2d(2, 0)));
+    var points = PathPlannerPath.bezierFromPoses(
+        new Pose2d(),
+        new Pose2d(2, 0, new Rotation2d()));
 
     var pathConstraints = new PathConstraints(TunerConstants.kAutonomousMaxSpeedMps, 6.0, Math.PI * 3, Math.PI * 6);
 
     var endState = new GoalEndState(0, new Rotation2d());
 
-    var path = PathPlannerPath.fromPathPoints(points, pathConstraints, endState);
+    var path = new PathPlannerPath(points, pathConstraints, endState);
+
+    path.preventFlipping = true;
 
     var command = drivetrain.followPath(path);
 
