@@ -10,6 +10,7 @@ import com.ctre.phoenix6.mechanisms.swerve.SwerveModule;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveRequest;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveRequest.FieldCentric;
+import com.pathplanner.lib.commands.PathPlannerAuto;
 import com.pathplanner.lib.path.GoalEndState;
 import com.pathplanner.lib.path.PathConstraints;
 import com.pathplanner.lib.path.PathPlannerPath;
@@ -83,7 +84,9 @@ public class RobotContainer {
 
     drivetrain.seedFieldRelative(path.getPreviewStartingHolonomicPose());
 
-    return command;
+    var newCommand = new PathPlannerAuto("Auto square");
+
+    return newCommand;
     // return Commands.print("No autonomous command configured");
   }
 }
