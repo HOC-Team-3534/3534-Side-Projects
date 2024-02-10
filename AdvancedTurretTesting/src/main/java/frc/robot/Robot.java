@@ -32,7 +32,7 @@ import edu.wpi.first.wpilibj.XboxController;
  */
 public class Robot extends TimedRobot {
   private final XboxController xbox = new XboxController(0);
-  private final TalonFX turret = new TalonFX(0, "*");
+  private final TalonFX turret = new TalonFX(15);
   private final AnalogInput pot = new AnalogInput(0);
 
   private final MotionMagicVoltage turret_mmRequest = new MotionMagicVoltage(0);

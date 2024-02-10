@@ -144,11 +144,11 @@ public class TunerConstants {
 
         private static final HolonomicPathFollowerConfig HoloConfig = new HolonomicPathFollowerConfig(
                         new PIDConstants(10), new PIDConstants(10),
-                        4, new Translation2d(FrontLeft.LocationX, FrontLeft.LocationY).getNorm(),
+                        kSpeedAt12VoltsMps, new Translation2d(FrontLeft.LocationX, FrontLeft.LocationY).getNorm(),
                         new ReplanningConfig());
 
         public static final CommandSwerveDrivetrain DriveTrain = new CommandSwerveDrivetrain(DrivetrainConstants,
-                        kAutonomousMaxSpeedMps,
+                        kSpeedAt12VoltsMps,
                         HoloConfig,
                         FrontLeft,
                         FrontRight, BackLeft, BackRight);

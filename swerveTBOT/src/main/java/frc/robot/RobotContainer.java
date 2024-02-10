@@ -4,12 +4,18 @@
 
 package frc.robot;
 
+import java.util.ArrayList;
+
 import com.ctre.phoenix6.StatusCode;
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveModule;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveRequest;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveRequest.FieldCentric;
+import com.pathplanner.lib.path.GoalEndState;
+import com.pathplanner.lib.path.PathConstraints;
+import com.pathplanner.lib.path.PathPlannerPath;
+import com.pathplanner.lib.path.PathPoint;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -35,7 +41,6 @@ public class RobotContainer {
       .withMaxSpeed(TunerConstants.kSpeedAt12VoltsMps).withMaxAngularSpeed(MaxAngularRate)
       .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
   private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
-  private final Telemetry logger = new Telemetry(TunerConstants.kSpeedAt12VoltsMps);
 
   private void configureBindings() {
     drivetrain.setDefaultCommand( // Drivetrain will execute this command periodically
@@ -59,7 +64,6 @@ public class RobotContainer {
     if (Utils.isSimulation()) {
       drivetrain.seedFieldRelative(new Pose2d(new Translation2d(), Rotation2d.fromDegrees(90)));
     }
-    drivetrain.registerTelemetry(logger::telemeterize);
   }
 
   public RobotContainer() {
@@ -67,7 +71,23 @@ public class RobotContainer {
   }
 
   public Command getAutonomousCommand() {
-    return Commands.print("No autonomous command configured");
+    var points = new ArrayList<PathPoint>();
+
+    points.add(new PathPoint(new Translation2d()));
+    points.add(new PathPoint(new Translation2d(2, 0)));
+
+    var pathConstraints = new PathConstraints(TunerConstants.kAutonomousMaxSpeedMps, 6.0, Math.PI * 3, Math.PI * 6);
+
+    var endState = new GoalEndState(0, new Rotation2d());
+
+    var path = PathPlannerPath.fromPathPoints(points, pathConstraints, endState);
+
+    var command = drivetrain.followPath(path);
+
+    drivetrain.seedFieldRelative(path.getPreviewStartingHolonomicPose());
+
+    return command;
+    // return Commands.print("No autonomous command configured");
   }
 }
 
